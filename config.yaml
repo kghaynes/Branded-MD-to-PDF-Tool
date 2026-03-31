@@ -1,0 +1,37 @@
+# Branded PDF Generator Configuration
+# Update with your company information
+
+company:
+  name: "Your Company Name"
+  email: "contact@example.com"
+  website: "www.example.com"
+  logo_path: "/path/to/your/logo.png"  # Path to company logo (PNG or JPG)
+
+# Data classification color scheme
+# Color codes are hex values (e.g., #FF0000 for red)
+classifications:
+  PUBLIC:
+    color: "#22AA22"          # Green
+    text_color: "#FFFFFF"     # White text
+  INTERNAL:
+    color: "#FFDD00"          # Yellow
+    text_color: "#000000"     # Black text
+  CONFIDENTIAL:
+    color: "#FF9900"          # Orange
+    text_color: "#FFFFFF"     # White text
+  SECRET:
+    color: "#DD2222"          # Red
+    text_color: "#FFFFFF"     # White text
+
+# Styling options
+style:
+  heading_color: "#000000"    # Color for markdown headings
+  body_color: "#000000"       # Color for body text
+  font_name: "Helvetica"      # Base font
+
+# Page margins and spacing
+page:
+  left_margin: 0.75           # in inches
+  right_margin: 0.75
+  top_margin: 1.2             # Reserve space for header
+  bottom_margin: 0.6          # Reserve space for footer

@@ -1,0 +1,5 @@
+reportlab>=4.0.9
+markdown2>=2.4.10
+PyYAML>=6.0.1
+Pillow>=11.0.0
+PyPDF2>=4.0.0
