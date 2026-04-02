@@ -1,4 +1,5 @@
 # Branded PDF Generator
+v 1.01 (v1.0 was incomplete)
 
 A Python tool to convert markdown files to professionally branded PDFs with company branding, headers, footers, and data classification labels.
 
