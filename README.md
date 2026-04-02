@@ -5,10 +5,11 @@ A Python tool to convert markdown files to professionally branded PDFs with comp
 ## Features
 
 - ✓ Company logo, name, email, and website in header
-- ✓ Page numbers in footer
+- ✓ Page numbers ("Page X of Y") in footer
 - ✓ Data classification labels (PUBLIC, INTERNAL, CONFIDENTIAL, SECRET) with color coding
-- ✓ Classification badges appear at top and bottom of each page
-- ✓ Supports markdown formatting (headings, lists, tables, code blocks)
+- ✓ Full markdown support — headings, lists, tables, code blocks, inline formatting, blockquotes, horizontal rules, emoji
+- ✓ ASCII art and preformatted diagrams rendered with preserved spacing
+- ✓ Emoji rendering via bundled Noto Emoji font
 - ✓ Frontmatter metadata extracted and used as PDF properties
 - ✓ YAML configuration for easy customization
 - ✓ Command-line interface
@@ -19,14 +20,9 @@ A Python tool to convert markdown files to professionally branded PDFs with comp
 
 2. Create and activate a virtual environment:
 ```bash
-# Create virtual environment
 python3 -m venv venv
-
-# Activate it (macOS/Linux)
-source venv/bin/activate
-
-# Activate it (Windows)
-venv\Scripts\activate
+source venv/bin/activate   # macOS/Linux
+venv\Scripts\activate      # Windows
 ```
 
 3. Install dependencies:
@@ -34,9 +30,9 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-> **Note:** Each time you open a new terminal, activate the venv again with `source venv/bin/activate` (macOS/Linux) or `venv\Scripts\activate` (Windows) before running the script.
+> **Note:** Each time you open a new terminal, activate the venv again with `source venv/bin/activate` before running the script.
 
-> **macOS Note:** On macOS, use `python3` and `pip3` instead of `python` and `pip` (e.g., `python3 -m venv venv`, `pip3 install -r requirements.txt`, `python3 md_to_pdf.py ...`).
+> **macOS Note:** If pip gives an "externally managed environment" error, use `python3 -m pip install -r requirements.txt` inside the activated venv.
 
 ## Configuration
 
@@ -60,31 +56,29 @@ company:
 Convert a markdown file to PDF with default INTERNAL classification:
 
 ```bash
-python md_to_pdf.py document.md -o output.pdf
+python3 md_to_pdf.py document.md -o output.pdf
 ```
 
 ### With Custom Classification
 
-Specify the data classification level:
-
 ```bash
-python md_to_pdf.py document.md -o output.pdf --classification CONFIDENTIAL
+python3 md_to_pdf.py document.md -o output.pdf --classification CONFIDENTIAL
 ```
 
 ### Custom Config File
 
-Use a different configuration file:
-
 ```bash
-python md_to_pdf.py document.md -o output.pdf --config my-config.yaml --classification SECRET
+python3 md_to_pdf.py document.md -o output.pdf --config my-config.yaml --classification SECRET
 ```
 
 ### Available Classifications
 
-- `PUBLIC` - Green label
-- `INTERNAL` - Yellow label
-- `CONFIDENTIAL` - Orange label
-- `SECRET` - Red label
+| Level | Badge Color |
+|---|---|
+| `PUBLIC` | Green |
+| `INTERNAL` | Yellow |
+| `CONFIDENTIAL` | Orange |
+| `SECRET` | Red |
 
 ## Markdown File Format
 
@@ -102,79 +96,73 @@ date: "2026-03-31"
 Document content in markdown format...
 ```
 
-The frontmatter is extracted and used as PDF metadata (invisible to reader) but not displayed in the document content.
+The frontmatter is used as PDF metadata (not displayed in the document body).
 
-## Markdown Supported Elements
+## Supported Markdown Elements
 
-- Headings (H1-H3)
-- Paragraphs
-- Unordered and ordered lists
-- Tables
-- Code blocks
-- Inline formatting (bold, italic, code)
+| Element | Support |
+|---|---|
+| Headings H1–H6 | Full styling with configurable heading color |
+| Paragraphs | With bold, italic, inline code, links |
+| Unordered lists | Bullet points (•) |
+| Ordered lists | Numbered |
+| Tables | With header row, alternating row shading |
+| Fenced code blocks | Monospace, whitespace-preserved (ASCII art safe) |
+| Inline code | Courier font |
+| Blockquotes | Indented with grey text |
+| Horizontal rules | Grey divider line |
+| Emoji | Rendered via Noto Emoji font (✅ ❌ ⭐ etc.) |
+| YAML frontmatter | Extracted as PDF metadata, not rendered |
 
 ## Output
 
 The generated PDF includes:
 
-- **Header**: Company logo (left side) and company name, email, website (right side)
-- **Classification Labels**: Color-coded boxes with classification level at top-left and bottom-right
-- **Content**: Formatted markdown content in the middle of each page
-- **Footer**: Page numbers
-- **Metadata**: Document title and author from frontmatter
+- **Header**: Company logo (left) and company name, email, website (right), with separator line
+- **Body**: Fully formatted markdown content
+- **Footer**: Classification badge (left), date created (center), "Page X of Y" (right)
+
+## Emoji Support
+
+Emoji are rendered using the bundled `NotoEmoji.ttf` font (Google Noto Emoji, monochrome). The font file must be present in the same directory as `md_to_pdf.py`. Emoji appear as black outline glyphs (not color).
 
 ## Example
 
-Test with the included example:
-
 ```bash
-python md_to_pdf.py example_doc.md -o test.pdf --classification CONFIDENTIAL
+source venv/bin/activate
+python3 md_to_pdf.py example_doc.md -o report.pdf --classification CONFIDENTIAL
 ```
 
-This generates a PDF with:
-- Your company branding in the header
-- "CONFIDENTIAL" label (orange) at top and bottom
-- All the example document content formatted
-
 ## Troubleshooting
+
+### `ModuleNotFoundError: No module named 'yaml'`
+The venv is activated but packages aren't installed, or the venv's Python was broken by a Homebrew update. Recreate it:
+```bash
+deactivate && rm -rf venv && python3 -m venv venv && source venv/bin/activate && python3 -m ensurepip --upgrade && pip install -r requirements.txt
+```
 
 ### Logo not appearing
 - Check that the path in `config.yaml` is correct and the file exists
 - Ensure the image is in PNG or JPG format
-- Verify file permissions allow reading
+
+### Emoji not rendering
+- Ensure `NotoEmoji.ttf` is present in the same directory as `md_to_pdf.py`
+- Re-download if missing: `curl -L -o NotoEmoji.ttf "https://github.com/google/fonts/raw/main/ofl/notoemoji/NotoEmoji%5Bwght%5D.ttf"`
 
 ### PDF generation fails
-- Check that the markdown file is valid UTF-8 encoded
-- Ensure all required fields in config.yaml are filled
+- Ensure the markdown file is valid UTF-8
 - Verify the output directory exists and is writable
-
-### Classification colors not showing
-- Ensure hex color codes in config.yaml are valid (e.g., `#FF0000`)
-- Check that the classification name matches exactly (case-sensitive)
-
-## Advanced Usage
-
-### Batch Processing
-
-Create a script to process multiple files:
-
-```bash
-#!/bin/bash
-for file in *.md; do
-  python md_to_pdf.py "$file" -o "${file%.md}.pdf" --classification INTERNAL
-done
-```
-
-### Custom Styling
-
-Modify the `style` section in `config.yaml` to customize colors and fonts for the generated PDFs.
 
 ## Technical Details
 
-- **PDF Library**: ReportLab (provides low-level control over PDF generation)
-- **Markdown Parser**: markdown2 (supports tables and code blocks)
-- **Configuration**: YAML format
-- **Logo Handling**: Pillow for image processing
+| Component | Library |
+|---|---|
+| PDF generation | ReportLab |
+| Markdown parsing | markdown2 |
+| Configuration | PyYAML |
+| Logo handling | Pillow |
+| Page counting | pypdf |
+| Emoji rendering | Noto Emoji (bundled TTF) |
 
 ## License
 

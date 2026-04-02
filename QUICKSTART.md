@@ -2,16 +2,28 @@
 
 Get your branded PDF generator running in 5 minutes.
 
-## Step 1: Install Dependencies
+## Step 1: Set Up the Virtual Environment
 
 ```bash
+python3 -m venv venv
+source venv/bin/activate   # macOS/Linux
+venv\Scripts\activate      # Windows
+python3 -m ensurepip --upgrade
 pip install -r requirements.txt
 ```
 
-## Step 2: Prepare Your Company Logo
+> **macOS note:** If pip gives an "externally managed environment" error, make sure you activated the venv first. If the venv is already active and the error persists, recreate it:
+> ```bash
+> deactivate && rm -rf venv && python3 -m venv venv && source venv/bin/activate && python3 -m ensurepip --upgrade && pip install -r requirements.txt
+> ```
 
-- Place your company logo (PNG or JPG) in this directory
-- Note the filename (e.g., `logo.png`)
+## Step 2: Verify the Emoji Font is Present
+
+The file `NotoEmoji.ttf` must be in the same directory as `md_to_pdf.py`. It is bundled in the repo. If it's missing, re-download it:
+
+```bash
+curl -L -o NotoEmoji.ttf "https://github.com/google/fonts/raw/main/ofl/notoemoji/NotoEmoji%5Bwght%5D.ttf"
+```
 
 ## Step 3: Configure Company Information
 
@@ -22,92 +34,62 @@ company:
   name: "Acme Corp"
   email: "security@acme.com"
   website: "www.acme.com"
-  logo_path: "logo.png"  # Update this path
+  logo_path: "/absolute/path/to/logo.png"  # PNG or JPG
 ```
-
-Save and close the file.
 
 ## Step 4: Test with Example Document
 
 ```bash
-python md_to_pdf.py example_doc.md -o test.pdf --classification CONFIDENTIAL
+python3 md_to_pdf.py example_doc.md -o test.pdf --classification CONFIDENTIAL
 ```
 
-Open `test.pdf` to verify everything looks good:
-- Your company name in header (top right)
+Open `test.pdf` and verify:
+- Company name/email/website in header (top right)
 - Company logo (top left)
-- "CONFIDENTIAL" label (orange) at top and bottom
-- Example content formatted properly
+- "CONFIDENTIAL" badge (orange) in footer
+- Date and "Page X of Y" in footer
+- Markdown content formatted correctly
 
 ## Step 5: Use with Your Own Documents
 
-For any markdown file, generate a branded PDF:
-
 ```bash
-python md_to_pdf.py your_document.md -o output.pdf --classification INTERNAL
+python3 md_to_pdf.py your_document.md -o output.pdf --classification INTERNAL
 ```
 
-Choose classification based on sensitivity:
-- `PUBLIC` - No restrictions
-- `INTERNAL` - Internal use only
-- `CONFIDENTIAL` - Restricted distribution
-- `SECRET` - Highly restricted
+### Classification levels
 
-## Optional: Add to Your Tools
-
-If your markdown generators create `.md` files, add a post-processing step:
-
-```bash
-# After generating document.md:
-python /path/to/md_to_pdf.py document.md -o document.pdf --classification INTERNAL
-```
-
-## Customization
-
-### Change Classification Colors
-
-Edit the `classifications` section in `config.yaml` with hex color codes:
-
-```yaml
-classifications:
-  CONFIDENTIAL:
-    color: "#FF6600"        # Your color
-    text_color: "#FFFFFF"
-```
-
-### Add More Metadata
-
-Frontmatter in your markdown files becomes PDF metadata:
-
-```markdown
----
-title: "Report Title"
-author: "John Doe"
-date: "2026-03-31"
----
-
-# Content starts here...
-```
-
-### Adjust Margins and Spacing
-
-Modify the `page` section in `config.yaml` to change spacing and margins.
+| Flag | Badge Color | Use for |
+|---|---|---|
+| `PUBLIC` | Green | No restrictions |
+| `INTERNAL` | Yellow | Internal use only |
+| `CONFIDENTIAL` | Orange | Restricted distribution |
+| `SECRET` | Red | Highly restricted |
 
 ## Common Commands
 
 ```bash
 # Default (INTERNAL classification)
-python md_to_pdf.py file.md -o file.pdf
+python3 md_to_pdf.py file.md -o file.pdf
 
 # Public document
-python md_to_pdf.py file.md -o file.pdf --classification PUBLIC
+python3 md_to_pdf.py file.md -o file.pdf --classification PUBLIC
 
-# Confidential document
-python md_to_pdf.py file.md -o file.pdf --classification CONFIDENTIAL
-
-# With custom config
-python md_to_pdf.py file.md -o file.pdf --config custom.yaml --classification SECRET
+# Confidential with custom config
+python3 md_to_pdf.py file.md -o file.pdf --config custom.yaml --classification CONFIDENTIAL
 ```
+
+## Supported Markdown
+
+Your `.md` files can use:
+- Headings `#` through `######`
+- **Bold**, *italic*, `inline code`
+- Bullet and numbered lists
+- Tables
+- Fenced code blocks (``` ``` ```) — whitespace and ASCII art preserved
+- Blockquotes (`>`)
+- Horizontal rules (`---`)
+- Emoji (✅ ❌ ⭐ etc.)
+- YAML frontmatter (used as PDF metadata, not rendered in body)
 
 ## Need Help?
 

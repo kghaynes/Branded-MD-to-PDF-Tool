@@ -19,12 +19,66 @@ from reportlab.lib.units import inch
 from reportlab.lib.colors import HexColor, transparent
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, PageTemplate, Frame,
-    PageBreak, Table, TableStyle, Image, KeepTogether
+    PageBreak, Table, TableStyle, Image, KeepTogether, Preformatted
 )
 from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus.flowables import HRFlowable
 from reportlab.lib import colors
 from PIL import Image as PILImage
-import PyPDF2
+import pypdf
+
+# Register Noto Emoji font for emoji rendering
+_emoji_font_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'NotoEmoji.ttf')
+if os.path.exists(_emoji_font_path):
+    pdfmetrics.registerFont(TTFont('NotoEmoji', _emoji_font_path))
+
+def _html_to_rl_text(html_snippet: str) -> str:
+    """Convert HTML inline markup to ReportLab Paragraph-compatible XML."""
+    import html as html_mod
+    text = html_snippet
+    # Preserve line breaks
+    text = re.sub(r'<br\s*/?>', '<br/>', text)
+    # Inline code: extract, escape for XML, wrap in Courier font
+    def code_to_rl(m):
+        content = re.sub(r'<[^>]+>', '', m.group(1))
+        content = html_mod.unescape(content)
+        content = content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        return f'<font name="Courier" size="9">{content}</font>'
+    text = re.sub(r'<code>(.*?)</code>', code_to_rl, text, flags=re.DOTALL)
+    # Bold and italic
+    text = re.sub(r'<strong>(.*?)</strong>', r'<b>\1</b>', text, flags=re.DOTALL)
+    text = re.sub(r'<em>(.*?)</em>', r'<i>\1</i>', text, flags=re.DOTALL)
+    # Links — keep anchor text, drop URL
+    text = re.sub(r'<a[^>]*>(.*?)</a>', r'\1', text, flags=re.DOTALL)
+    # Strip remaining HTML tags
+    text = re.sub(r'<(?!b>|/b>|i>|/i>|br/>|font[^>]*>|/font>)[^>]+>', '', text)
+    # Handle &nbsp;
+    text = text.replace('&nbsp;', ' ')
+    return _wrap_emoji(text)
+
+
+def _wrap_emoji(text: str) -> str:
+    """Wrap emoji characters in <font> tags to use NotoEmoji font."""
+    if not os.path.exists(_emoji_font_path):
+        return text
+    result = []
+    in_emoji = False
+    for ch in text:
+        if ord(ch) > 0x2000 and ord(ch) not in (0x2014,):  # Skip em dash
+            if not in_emoji:
+                result.append('<font name="NotoEmoji">')
+                in_emoji = True
+            result.append(ch)
+        else:
+            if in_emoji:
+                result.append('</font>')
+                in_emoji = False
+            result.append(ch)
+    if in_emoji:
+        result.append('</font>')
+    return ''.join(result)
 
 
 class BrandedCanvas(pdfcanvas.Canvas):
@@ -178,6 +232,46 @@ class BrandedPDFGenerator:
             spaceAfter=8,
             leading=17
         ))
+        styles.add(ParagraphStyle(
+            name='CustomH4',
+            parent=styles['Heading4'],
+            fontSize=12,
+            textColor=HexColor(self.config.get('style', {}).get('heading_color', '#000000')),
+            spaceAfter=6,
+            leading=15
+        ))
+        styles.add(ParagraphStyle(
+            name='CustomH5',
+            parent=styles['Heading5'],
+            fontSize=11,
+            textColor=HexColor(self.config.get('style', {}).get('heading_color', '#000000')),
+            spaceAfter=4,
+            leading=14
+        ))
+        styles.add(ParagraphStyle(
+            name='CustomH6',
+            parent=styles['Heading6'],
+            fontSize=10,
+            textColor=HexColor(self.config.get('style', {}).get('heading_color', '#444444')),
+            spaceAfter=4,
+            leading=13
+        ))
+        styles.add(ParagraphStyle(
+            name='BulletItem',
+            parent=styles['BodyText'],
+            leftIndent=20,
+            bulletIndent=6,
+            spaceBefore=2,
+            spaceAfter=2,
+        ))
+        styles.add(ParagraphStyle(
+            name='Blockquote',
+            parent=styles['BodyText'],
+            leftIndent=30,
+            rightIndent=10,
+            textColor=HexColor('#555555'),
+            borderPadding=(4, 4, 4, 8),
+        ))
 
         return styles
 
@@ -213,7 +307,7 @@ class BrandedPDFGenerator:
         """Get actual page count from generated PDF."""
         try:
             with open(pdf_path, 'rb') as f:
-                reader = PyPDF2.PdfReader(f)
+                reader = pypdf.PdfReader(f)
                 return len(reader.pages)
         except Exception as e:
             print(f"Warning: Could not read page count: {e}")
@@ -221,48 +315,113 @@ class BrandedPDFGenerator:
 
     def _markdown_to_elements(self, md_content: str) -> list:
         """Convert markdown content to Platypus elements."""
+        import html as html_mod
         elements = []
 
-        # Convert markdown to HTML
         html_content = markdown(md_content, extras=['tables', 'fenced-code-blocks'])
 
-        # Simple HTML-to-Platypus conversion
-        # Split by common block elements
-        blocks = re.split(r'(<h[1-6]>.*?</h[1-6]>|<p>.*?</p>|<ul>.*?</ul>|<ol>.*?</ol>|<pre>.*?</pre>)',
-                         html_content, flags=re.DOTALL)
+        blocks = re.split(
+            r'(<h[1-6][^>]*>.*?</h[1-6]>|<p>.*?</p>|<ul>.*?</ul>|<ol>.*?</ol>'
+            r'|<pre>.*?</pre>|<table>.*?</table>|<blockquote>.*?</blockquote>|<hr[^>]*/?>)',
+            html_content, flags=re.DOTALL
+        )
 
         for block in blocks:
             block = block.strip()
             if not block:
                 continue
 
-            # Headings
             if block.startswith('<h1'):
-                text = re.sub(r'<[^>]+>', '', block)
+                text = _html_to_rl_text(re.sub(r'</?h1[^>]*>', '', block))
                 elements.append(Paragraph(text, self.styles['CustomH1']))
                 elements.append(Spacer(1, 0.15*inch))
             elif block.startswith('<h2'):
-                text = re.sub(r'<[^>]+>', '', block)
+                text = _html_to_rl_text(re.sub(r'</?h2[^>]*>', '', block))
                 elements.append(Paragraph(text, self.styles['CustomH2']))
                 elements.append(Spacer(1, 0.12*inch))
             elif block.startswith('<h3'):
-                text = re.sub(r'<[^>]+>', '', block)
+                text = _html_to_rl_text(re.sub(r'</?h3[^>]*>', '', block))
                 elements.append(Paragraph(text, self.styles['CustomH3']))
                 elements.append(Spacer(1, 0.1*inch))
-            elif block.startswith('<p'):
+            elif block.startswith('<h4'):
+                text = _html_to_rl_text(re.sub(r'</?h4[^>]*>', '', block))
+                elements.append(Paragraph(text, self.styles['CustomH4']))
+                elements.append(Spacer(1, 0.08*inch))
+            elif block.startswith('<h5'):
+                text = _html_to_rl_text(re.sub(r'</?h5[^>]*>', '', block))
+                elements.append(Paragraph(text, self.styles['CustomH5']))
+                elements.append(Spacer(1, 0.06*inch))
+            elif block.startswith('<h6'):
+                text = _html_to_rl_text(re.sub(r'</?h6[^>]*>', '', block))
+                elements.append(Paragraph(text, self.styles['CustomH6']))
+                elements.append(Spacer(1, 0.06*inch))
+            elif block.startswith('<pre'):
                 text = re.sub(r'<[^>]+>', '', block)
+                text = html_mod.unescape(text).strip('\n')
+                code_style = ParagraphStyle('CodeBlock', fontName='Courier', fontSize=8, leading=10)
+                elements.append(Preformatted(text, code_style))
+                elements.append(Spacer(1, 0.1*inch))
+            elif block.startswith('<ul') or block.startswith('<ol'):
+                ordered = block.startswith('<ol')
+                items = re.findall(r'<li>(.*?)</li>', block, flags=re.DOTALL)
+                for i, item in enumerate(items):
+                    # Strip nested list blocks for simplicity
+                    item = re.sub(r'<[uo]l>.*?</[uo]l>', '', item, flags=re.DOTALL)
+                    item_text = _html_to_rl_text(item)
+                    bullet = f'{i + 1}.' if ordered else '•'
+                    elements.append(Paragraph(item_text, self.styles['BulletItem'], bulletText=bullet))
+                elements.append(Spacer(1, 0.1*inch))
+            elif block.startswith('<blockquote'):
+                inner = re.sub(r'</?blockquote[^>]*>', '', block)
+                text = _html_to_rl_text(inner)
+                elements.append(Paragraph(text, self.styles['Blockquote']))
+                elements.append(Spacer(1, 0.1*inch))
+            elif block.startswith('<hr'):
+                elements.append(HRFlowable(width='100%', thickness=1, color=HexColor('#CCCCCC'), spaceAfter=6))
+                elements.append(Spacer(1, 0.05*inch))
+            elif block.startswith('<p'):
+                text = _html_to_rl_text(re.sub(r'</?p[^>]*>', '', block))
                 elements.append(Paragraph(text, self.styles['BodyText']))
                 elements.append(Spacer(1, 0.1*inch))
-            elif block.startswith('<pre'):
-                # Code block
-                text = re.sub(r'<[^>]+>', '', block)
-                style = ParagraphStyle('Code', parent=self.styles['BodyText'],
-                                      fontName='Courier', fontSize=9)
-                elements.append(Paragraph(text, style))
-                elements.append(Spacer(1, 0.1*inch))
+            elif block.startswith('<table'):
+                table_data = []
+                header_rows = 0
+                rows = re.findall(r'<tr>(.*?)</tr>', block, flags=re.DOTALL)
+                for row in rows:
+                    header_cells = re.findall(r'<th[^>]*>(.*?)</th>', row, flags=re.DOTALL)
+                    data_cells = re.findall(r'<td[^>]*>(.*?)</td>', row, flags=re.DOTALL)
+                    if header_cells:
+                        cells = [Paragraph(_html_to_rl_text(re.sub(r'<[^>]+>', '', c).strip()),
+                                 ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=9))
+                                 for c in header_cells]
+                        table_data.append(cells)
+                        header_rows += 1
+                    elif data_cells:
+                        cells = [Paragraph(_html_to_rl_text(re.sub(r'<[^>]+>', '', c).strip()),
+                                 ParagraphStyle('TD', fontName='Helvetica', fontSize=9))
+                                 for c in data_cells]
+                        table_data.append(cells)
+
+                if table_data:
+                    col_count = max(len(row) for row in table_data)
+                    col_width = (letter[0] - 1.5*inch) / col_count
+                    tbl = Table(table_data, colWidths=[col_width] * col_count)
+                    style_cmds = [
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                        ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white, HexColor('#F5F5F5')]),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ]
+                    if header_rows:
+                        style_cmds.append(('BACKGROUND', (0, 0), (-1, header_rows - 1), HexColor('#D0D0D0')))
+                    tbl.setStyle(TableStyle(style_cmds))
+                    elements.append(tbl)
+                    elements.append(Spacer(1, 0.15*inch))
             else:
-                # Fallback for other content
-                text = re.sub(r'<[^>]+>', '', block)
+                text = _html_to_rl_text(block)
                 if text.strip():
                     elements.append(Paragraph(text, self.styles['BodyText']))
                     elements.append(Spacer(1, 0.1*inch))

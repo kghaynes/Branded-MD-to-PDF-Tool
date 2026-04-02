@@ -2,10 +2,10 @@
 # Update with your company information
 
 company:
-  name: "Your Company Name"
-  email: "contact@example.com"
-  website: "www.example.com"
-  logo_path: "/path/to/your/logo.png"  # Path to company logo (PNG or JPG)
+  name: "CyberCloudAI Consulting LLC"
+  email: "info@cybercloudai.tech"
+  website: "www.cybercloudai.tech"
+  logo_path: "/Users/kghaynes/Documents/Business/CyberCloudAI/01_ADMIN/Graphics/newlogo_justcloud.png"  # Path to company logo (PNG or JPG)
 
 # Data classification color scheme
 # Color codes are hex values (e.g., #FF0000 for red)

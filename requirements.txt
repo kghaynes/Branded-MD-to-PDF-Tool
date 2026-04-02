@@ -2,4 +2,8 @@ reportlab>=4.0.9
 markdown2>=2.4.10
 PyYAML>=6.0.1
 Pillow>=11.0.0
-PyPDF2>=4.0.0
+pypdf>=3.0.0
+
+# Font file (not a pip package — bundled in repo)
+# NotoEmoji.ttf: Google Noto Emoji font for emoji rendering in PDFs
+# Source: https://github.com/google/fonts/raw/main/ofl/notoemoji/NotoEmoji%5Bwght%5D.ttf
